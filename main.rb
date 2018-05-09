@@ -1,69 +1,59 @@
 require 'json'
+require_relative 'data_layout'
+
 class Lib
-
-  def initialize store = nil
-    @store = store || Hash.new {|h,k| h[k] = []}
-    @params = {
-      :Author => %i[name bio],
-      :Reader => %i[name email city street house],
-      :Book => %i[title Author],
-      :Order => %i[Book Reader date]
-    }
+  def initialize(store = nil)
+    @store = store || {}
+    @params = Layout
+    Layout.keys.each { |k| @store[k] = [] } unless store
   end
 
-  def add(t, *args)
-    ret = Hash[@params[t].zip args]
-    @store[t].push(ret) and ret
+  def add(type, *args)
+    ret = Hash[@params[type].zip args]
+    @store[type].push(ret)
+    ret
   end
 
-  def [](t, **kwargs)
-    @store[t].find{ |o| kwargs <= o}
+  def [](type, **kwargs)
+    @store[type].find { |o| kwargs <= o }
   end
 
-  def to_file path
-    File.open(path,'w') { |fp| fp.write(@store.to_json) }
+  def to_file(path)
+    File.open(path, 'w') { |fp| fp.write(@store.to_json) }
   end
 
-  def self.from_file name
-    self.new JSON.parse(File.read(name), :symbolize_names => true)
+  def self.from_file(name)
+    new JSON.parse(File.read(name), symbolize_names: true)
   end
 
-  def who_often_take? the_book
-    #select all orders having proper book field (either str name or hash)                                                       
-    t = @store[:Order].select do |o|
-      (the_book.is_a?(Hash)? o[:Book]: o[:Book][:title]) == the_book
-    end
-
-    #group them by reader: [Reader, associated orders] pair                                                                     
-    q = t.group_by {|o| o[:Reader]}
-
-    #select max by orders of this book                                                                                          
-    q.max_by {|k,v| v.length}.first
+  def who_often_take(the_book)
+    t = if the_book.is_a? Hash
+          @store[:Order].select { |o| o[:Book] == the_book }
+        else
+          @store[:Order].select { |o| o[:Book][:title] == the_book }
+        end
+    q = t.group_by { |o| o[:Reader] }
+    q.max_by { |_, v| v.count }.first
   end
 
   def most_popular
-    t = @store[:Order].group_by {|o| o[:Book]}
-    t.max_by {|k,v| v.count}.first
+    t = @store[:Order].group_by { |o| o[:Book] }
+    t.max_by { |_, v| v.count }.first
   end
 
   def how_many_ordered
-    # get [Book, number of orders related to this book] pairs                                                                   
-    p = @store[:Order].group_by{|o| o[:Book]}
-
-    # sort them by number of orders and get top 3                                                                               
-    top = p.sort_by {|k,v| -v.length}[0..2]
-
-    # count unique readers from top 3                                                                                           
-    top.map{|p1,p2| p2}.flatten.group_by {|o| o[:Reader]}.count
+    p = @store[:Order].group_by { |o| o[:Book] }
+    top = p.sort_by { |_, v| -v.count }[0..2]
+    top.map { |_, p2| p2 }.flatten.group_by { |o| o[:Reader] }.count
   end
 
 end
 
 
 
-if __FILE__ == $0
+if $PROGRAM_NAME == __FILE__
   lib = Lib.new
-  a = lib.add(:Author, 'asd','dsa')
+  a = lib.add(:Author, 'asd', 'dsa')
   b1 = lib.add(:Book, 'b1', a)
   b2 = lib.add(:Book, 'b2', a)
   b3 = lib.add(:Book, 'b3', a)
@@ -86,10 +76,10 @@ if __FILE__ == $0
     [b5, r1],
     [b5, r2],
     [b5, r3]
-  ].map{|b,r| lib.add(:Order,b,r)}
+  ].map { |b, r| lib.add(:Order, b, r) }
 
-  [b1,b2,b3,b4].zip [r1,r2,r3,r4].map do |b,r|
-    unless lib.who_often_take?(b) == r
+  [b1, b2, b3, b4].zip [r1, r2, r3, r4].map do |b, r|
+    unless lib.who_often_take(b) == r
       raise 'nth reader takes nth book the most'
     end
   end
