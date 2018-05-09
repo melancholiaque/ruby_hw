@@ -46,10 +46,7 @@ class Lib
     top = p.sort_by { |_, v| -v.count }[0..2]
     top.map { |_, p2| p2 }.flatten.group_by { |o| o[:Reader] }.count
   end
-
 end
-
-
 
 if $PROGRAM_NAME == __FILE__
   lib = Lib.new
