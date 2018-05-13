@@ -43,10 +43,9 @@ module MyStruct
       end
 
       def each
-        values.map do |v|
+        values.each do |v|
           yield(v)
         end
-        nil
       end
 
       def each_pair
